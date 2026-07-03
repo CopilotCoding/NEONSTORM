@@ -95,6 +95,13 @@
   .mapopt.sel b { color:#ff2d95; text-shadow:0 0 10px #ff2d95; }
   #toMenu { margin-top:18px; font-size:15px; letter-spacing:4px; color:#6f7fae; cursor:pointer; }
   #toMenu:hover { color:#2de2ff; text-shadow:0 0 8px #2de2ff; }
+  .setbtn { margin-top:22px; font-size:15px; letter-spacing:4px; color:#6f7fae; cursor:pointer; }
+  .setbtn:hover { color:#2de2ff; text-shadow:0 0 8px #2de2ff; }
+  #setrows { margin-top:34px; display:grid; grid-template-columns:auto 230px 64px; gap:18px 22px; align-items:center; font-size:17px; letter-spacing:2px; }
+  #setrows label { color:#8fa3d8; text-align:right; }
+  #setrows input[type=range] { accent-color:#ff2d95; width:230px; cursor:pointer; }
+  #setrows input[type=checkbox] { accent-color:#ff2d95; width:20px; height:20px; cursor:pointer; justify-self:start; }
+  #setrows .val { font-family:'Orbitron'; font-size:13px; color:#2de2ff; }
   #deathTitle { font-family:'Orbitron'; font-weight:900; font-size:clamp(34px,7vw,72px); letter-spacing:10px; color:#ff2d55; text-shadow:0 0 34px #ff2d55; }
   .stats { margin-top:26px; display:grid; grid-template-columns:auto auto; gap:6px 34px; font-size:19px; letter-spacing:2px; }
   .stats .k { color:#8fa3d8; text-align:right; } .stats .v { font-family:'Orbitron'; color:#fff; text-shadow:0 0 10px #2de2ff; }
@@ -142,6 +149,7 @@
   </div>
   <div class="click">CLICK TO ENTER THE GRID</div>
   <div id="best" style="margin-top:22px; letter-spacing:3px; color:#6f7fae"></div>
+  <div class="setbtn" id="setBtnMenu">⚙ SETTINGS</div>
 </div>
 
 <div class="ovl off" id="death">
@@ -155,6 +163,21 @@
 <div class="ovl off" id="pause">
   <div style="font-family:'Orbitron'; font-size:44px; letter-spacing:10px; color:#2de2ff; text-shadow:0 0 24px #2de2ff">PAUSED</div>
   <div class="click">CLICK TO RESUME</div>
+  <div class="setbtn" id="setBtnPause">⚙ SETTINGS</div>
+  <div class="setbtn" id="pauseMenuBtn">⟵ MAIN MENU</div>
+</div>
+
+<div class="ovl off" id="settings">
+  <div style="font-family:'Orbitron'; font-size:34px; letter-spacing:8px; color:#2de2ff; text-shadow:0 0 20px #2de2ff">SETTINGS</div>
+  <div id="setrows">
+    <label>MOUSE SENSITIVITY</label><input type="range" id="rngSens" min="0.2" max="3" step="0.05"><span class="val" id="vSens"></span>
+    <label>INVERT LOOK Y</label><input type="checkbox" id="chkInv"><span class="val"></span>
+    <label>FIELD OF VIEW</label><input type="range" id="rngFov" min="70" max="110" step="1"><span class="val" id="vFov"></span>
+    <label>MUSIC VOLUME</label><input type="range" id="rngMus" min="0" max="1" step="0.05"><span class="val" id="vMus"></span>
+    <label>SFX VOLUME</label><input type="range" id="rngSfx" min="0" max="1" step="0.05"><span class="val" id="vSfx"></span>
+    <label>SCREEN SHAKE</label><input type="range" id="rngShake" min="0" max="1.5" step="0.1"><span class="val" id="vShake"></span>
+  </div>
+  <div class="click" id="setBack">BACK</div>
 </div>
 
 <div id="err">NEONSTORM needs an internet connection once to load its 3D engine.<br>Check your connection and refresh.</div>
@@ -184,6 +207,11 @@ const TAU = Math.PI*2;
 
 let ARENA_R = 58;
 const GRAV = 26;
+
+/* persisted settings */
+let _sv = {}; try { _sv = JSON.parse(localStorage.getItem('neonstorm_set'))||{}; } catch(_){}
+const SET = Object.assign({ sens:1, invert:false, fov:92, music:0.30, sfx:0.9, shake:1 }, _sv);
+function saveSet(){ localStorage.setItem('neonstorm_set', JSON.stringify(SET)); }
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
@@ -378,8 +406,8 @@ function initAudio(){
   if (AC) return;
   AC = new (window.AudioContext||window.webkitAudioContext)();
   const master = AC.createGain(); master.gain.value = 0.85; master.connect(AC.destination);
-  sfxG = AC.createGain(); sfxG.gain.value = 0.9; sfxG.connect(master);
-  musG = AC.createGain(); musG.gain.value = 0.30; musG.connect(master);
+  sfxG = AC.createGain(); sfxG.gain.value = SET.sfx; sfxG.connect(master);
+  musG = AC.createGain(); musG.gain.value = SET.music; musG.connect(master);
   startMusic();
 }
 const NOISE = (()=>{ let b=null; return ()=>{ if(!b){ b=AC.createBuffer(1, AC.sampleRate*1.2, AC.sampleRate); const d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; } return b; };})();
@@ -847,7 +875,7 @@ const player = {
 const keys = {};
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
 let shakeAmt = 0, fovKick = 0, hintT = 0;
-function shake(a){ shakeAmt = Math.min(shakeAmt + a, 1.2); }
+function shake(a){ shakeAmt = Math.min(shakeAmt + a*SET.shake, 1.2); }
 function comboMult(){ return 1 + Math.min(game.combo,60)*0.05; } // up to 4x
 function rankOf(c){ return c>=60?['SS','#ffd319']:c>=35?['S','#ff2d95']:c>=20?['A','#b967ff']:c>=10?['B','#2de2ff']:c>=5?['C','#7cff6b']:['D','#8fa3d8']; }
 
@@ -874,8 +902,8 @@ addEventListener('wheel', e => {
 });
 addEventListener('mousemove', e => {
   if (document.pointerLockElement!==canvas) return;
-  player.yaw   -= e.movementX*0.0021;
-  player.pitch -= e.movementY*0.0021;
+  player.yaw   -= e.movementX*0.0021*SET.sens;
+  player.pitch += (SET.invert?1:-1)*e.movementY*0.0021*SET.sens;
   player.pitch = clamp(player.pitch, -1.5, 1.5);
 });
 
@@ -893,6 +921,41 @@ $('toMenu').addEventListener('click', e=>{
   $('menu').classList.remove('off');
   $('best').textContent = game.best ? `HIGH SCORE  ${game.best.toLocaleString()}` : '';
 });
+$('pauseMenuBtn').addEventListener('click', e=>{
+  e.stopPropagation();
+  if (game.score > game.best){ game.best = game.score; localStorage.setItem('neonstorm_best', game.best); }
+  clearWorld();
+  game.state = 'menu';
+  player.firing = false;
+  $('pause').classList.add('off');
+  $('hud').classList.remove('on');
+  $('menu').classList.remove('off');
+  $('best').textContent = game.best ? `HIGH SCORE  ${game.best.toLocaleString()}` : '';
+});
+
+/* settings panel */
+function applySet(){
+  if (musG) musG.gain.value = SET.music;
+  if (sfxG) sfxG.gain.value = SET.sfx;
+  $('rngSens').value = SET.sens;  $('vSens').textContent = SET.sens.toFixed(2)+'×';
+  $('chkInv').checked = SET.invert;
+  $('rngFov').value = SET.fov;    $('vFov').textContent = SET.fov+'°';
+  $('rngMus').value = SET.music;  $('vMus').textContent = Math.round(SET.music*100)+'%';
+  $('rngSfx').value = SET.sfx;    $('vSfx').textContent = Math.round(SET.sfx*100)+'%';
+  $('rngShake').value = SET.shake;$('vShake').textContent = Math.round(SET.shake*100)+'%';
+}
+let setFrom = 'menu';
+function openSettings(from){ setFrom = from; $(from).classList.add('off'); $('settings').classList.remove('off'); }
+$('setBtnMenu').addEventListener('click', ()=>openSettings('menu'));
+$('setBtnPause').addEventListener('click', e=>{ e.stopPropagation(); openSettings('pause'); });
+$('setBack').addEventListener('click', ()=>{ $('settings').classList.add('off'); $(setFrom).classList.remove('off'); });
+$('rngSens').addEventListener('input', e=>{ SET.sens = +e.target.value; saveSet(); applySet(); });
+$('chkInv').addEventListener('change', e=>{ SET.invert = e.target.checked; saveSet(); });
+$('rngFov').addEventListener('input', e=>{ SET.fov = +e.target.value; saveSet(); applySet(); });
+$('rngMus').addEventListener('input', e=>{ SET.music = +e.target.value; saveSet(); applySet(); });
+$('rngSfx').addEventListener('input', e=>{ SET.sfx = +e.target.value; saveSet(); applySet(); if (AC) S.pistol(); });
+$('rngShake').addEventListener('input', e=>{ SET.shake = +e.target.value; saveSet(); applySet(); });
+applySet();
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement===canvas;
   if (locked){
@@ -904,10 +967,13 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 /* ============================== FLOW ============================== */
-function startGame(){
+function clearWorld(){
   for (const e of enemies){ scene.remove(e.mesh); if (e.beam){ scene.remove(e.beam); e.beam.geometry.dispose(); } }
   enemies.length = 0; enemyMeshes.length = 0;
   for (const p of [...eproj, ...rockets, ...pickups]){ p.alive=false; p.mesh.visible=false; }
+}
+function startGame(){
+  clearWorld();
   Object.assign(game, { state:'play', score:0, wave:0, kills:0, combo:0, maxCombo:0, shots:0, hits:0, spawnBudget:0, spawnT:0, intermission:2.2, time:0, recentKills:[] });
   player.pos.set(0,1.7,ARENA_R*0.25); player.vel.set(0,0,0);
   player.yaw=Math.PI; player.pitch=0; player.hp=100; player.dash=3; player.weapon=0;
@@ -1304,7 +1370,7 @@ function updatePlayer(dt){
   // fov
   const spdF = clamp((spd2d-14)/30, 0, 1)*8;
   fovKick = Math.max(0, fovKick - fovKick*10*dt);
-  const tf = 92 + spdF + fovKick;
+  const tf = SET.fov + spdF + fovKick;
   if (Math.abs(camera.fov-tf)>0.05){ camera.fov = lerp(camera.fov, tf, 1-Math.exp(-12*dt)); camera.updateProjectionMatrix(); }
 
   // gun anims
